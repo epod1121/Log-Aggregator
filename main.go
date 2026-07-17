@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 
@@ -19,7 +20,9 @@ func main() {
 // going to simulate a high traffic online store with alerts
 // as well as fake analytics for purchases, sing ups, etc.
 
+// ======================================================================================
 // Producer - get log messages and send them to broker
+// ======================================================================================
 
 // initialize connection to broker
 func newLogProducer() {
@@ -46,12 +49,22 @@ func send(from string, time string, topic string, message string) {
 		fmt.Println("Error marshalling")
 	}
 
-	acceptLog(passTopic, data)
+	// NEED TO FIX THIS OFFSET THING RIGHT HERE
+	// NEED TO FIX THIS OFFSET THING RIGHT HERE
+	// NEED TO FIX THIS OFFSET THING RIGHT HERE
+	// NEED TO FIX THIS OFFSET THING RIGHT HERE
+	// NEED TO FIX THIS OFFSET THING RIGHT HERE
+
+	handleConnection(true, 0,  passTopic, data)
 	// send those thru tcp connection from newLogProducer()
 }
 
+
+
+// ======================================================================================
 // Broker - Centralized server that accepts logs and organizes them
 // into topics then persists them to disk
+// ======================================================================================
 
 // listens for incoming producers and consumers
 func startServer() {
@@ -71,10 +84,16 @@ func startServer() {
 }
 
 // determines if incoming connection is producer or consumer
-func handleConnection() {
+func handleConnection(producer bool, offset int, passTopic string, data []byte) {
 
-	// read first bytes of network
-	// handle if producer or consumer
+	if producer{
+		// go ahead and pass along to acceptLog
+		acceptLog(passTopic, data)
+		return
+	}
+
+	// if consumer - need to stream data from disk
+	steamLogs(passTopic, offset)
 }
 
 // coordinate storing the message safely
@@ -84,8 +103,8 @@ func acceptLog(topic string, message []byte) {
 	offset := len(offsetByteMap)
 
 	// open folder / file for specific topic
-	topic = "placeholder"
-	filename := fmt.Sprintf("Logs/%s.log", topic)
+	fileTopic := topic
+	filename := fmt.Sprintf("Logs/%s.log", fileTopic)
 	file, err := os.OpenFile(filename, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0644)
 	if err != nil {
 		fmt.Println("Error opening file")
@@ -125,8 +144,37 @@ func persistLog(file *os.File, data []byte) {
 	// call file.Sync()
 }
 
+// streams data from disk to consumer
+func steamLogs(topic string, startOffset int) {
+
+	startStreaming := offsetByteMap[startOffset]
+	// open folder / file for streaming
+	fileTopic := topic
+	filename := fmt.Sprintf("Logs/%s.log", fileTopic)
+	file, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+	if err != nil {
+		fmt.Println("Error opening file")
+		return
+	}
+	defer file.Close()
+
+	data, err := file.Seek(startStreaming, io.SeekStart)
+	if err != nil {
+		fmt.Println("Error seeking to offset")
+		return
+	}
+
+	// need to send data directly to consumer over tcp connection
+	// here just as a placeholder
+	fmt.Println(data)
+}
+
+
+
+// ======================================================================================
 // Consumer - Applications that read logs from the broker (sequentially)
 // and process them
+// ======================================================================================
 
 // request data from a specific point in time
 func processLog() {
