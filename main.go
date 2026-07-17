@@ -2,10 +2,13 @@ package main
 
 import (
 	"fmt"
+	"os"
+	//"golang.org/x/tools/go/analysis/passes/defers"
 	// "net/http"
-	// "os"
 	// "time"
 )
+
+var offsetByteMap = make(map[int]int64)
 
 func main() {
 	fmt.Print("Starting Program...")
@@ -50,19 +53,50 @@ func handleConnection() {
 }
 
 // coordinate storing the message safely
-func acceptLog() {
+func acceptLog(topic string, message []byte) {
+
+	nextByte := int64(0)
+	offset := len(offsetByteMap)
 
 	// open folder / file for specific topic
+	topic = "placeholder"
+	filename := fmt.Sprintf("Logs/%s.log", topic)
+	file, err := os.OpenFile(filename, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0644)
+	if err != nil {
+		fmt.Println("Error opening file")
+		return
+	}
+	defer file.Close()
+
 	// check current size of the file for byte position
-	// determine offset by how many items are already stored in this topic
+	fileSize, err := file.Stat()
+	if err != nil {
+		fmt.Println("Error getting file stat")
+		return
+	}
+
+	nextByte = fileSize.Size()
+
 	// save key value pair [offset]byte
+	offsetByteMap[offset] = nextByte
+	offset++
+
 	// call persisLog() to save to disk
+	persistLog(file, message)
 }
 
 // write the raw data to drive
-func persistLog() {
+func persistLog(file *os.File, data []byte) {
 
 	// write the bytes to the file
+	success, err := file.Write(data)
+	if err != nil {
+		fmt.Println("Error persisting data")
+		return
+	}
+	defer file.Close()
+
+	fmt.Printf("Wrote %v bytes to disk\n", success)
 	// call file.Sync()
 }
 
