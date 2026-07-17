@@ -16,30 +16,49 @@ func main() {
 
 func payment() {
 
+	// placeholder, will make it a random value
+	price := 100
+
+	fmt.Printf("A $%s purchase was made\n", price)
 }
 
 func paymentError() {
 
+	// placeholder, will make it a random value
+	price := 100
+
+	fmt.Printf("A payment error occurred losing us $%s\n", price)
 }
 
 func addToCart() {
-	
+
+	item := "carrot"
+
+	fmt.Printf("A customer added %s to their cart\n", item)
 }
 
 func newSignUp() {
 
+	fmt.Println("A new customer just signed up")
 }
 
 func outOfStock() {
 
+	item := "carrot"
+
+	fmt.Printf("%s is out of stock!\n", item)
+	restocking(item)
 }
 
-func restocking() {
+func restocking(item string) {
 
+	fmt.Printf("Restocking %s...\n", item)
 }
 
 func criticalError() {
 	
+	fmt.Println("A critical error has occurred, page a worker!")
+	wakeUpSleepDeprivedWorker()
 }
 
 // Producer - get log messages and send them to broker
@@ -90,4 +109,7 @@ func processLog() {
 // very necessary part of this program
 func wakeUpSleepDeprivedWorker() {
 
+	fmt.Println("Frantically drinking coffee and solving problem")
+	// wait 3 seconds
+	fmt.Println("Problem solved. Going back to sleep")
 }
