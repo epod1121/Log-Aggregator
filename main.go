@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"net/http"
-	"os"
+	// "net/http"
+	// "os"
+	// "time"
 )
 
 func main() {
@@ -14,81 +15,55 @@ func main() {
 // going to simulate a high traffic online store with alerts
 // as well as fake analytics for purchases, sing ups, etc.
 
-func payment() {
-
-	// placeholder, will make it a random value
-	price := 100
-
-	fmt.Printf("A $%s purchase was made\n", price)
-}
-
-func paymentError() {
-
-	// placeholder, will make it a random value
-	price := 100
-
-	fmt.Printf("A payment error occurred losing us $%s\n", price)
-}
-
-func addToCart() {
-
-	item := "carrot"
-
-	fmt.Printf("A customer added %s to their cart\n", item)
-}
-
-func newSignUp() {
-
-	fmt.Println("A new customer just signed up")
-}
-
-func outOfStock() {
-
-	item := "carrot"
-
-	fmt.Printf("%s is out of stock!\n", item)
-	restocking(item)
-}
-
-func restocking(item string) {
-
-	fmt.Printf("Restocking %s...\n", item)
-}
-
-func criticalError() {
-	
-	fmt.Println("A critical error has occurred, page a worker!")
-	wakeUpSleepDeprivedWorker()
-}
-
 // Producer - get log messages and send them to broker
 
-func getLogMessage() {
+// initialize connection to broker
+func newLogProducer() {
 
+	// return a structure that holds this connection
+}
+
+// package and ships a single log
+func send() {
+
+	// take the time, topic, and message
+	// turn them into protobuf
+	// send those thru tcp connection from newLogProducer()
 }
 
 // Broker - Centralized server that accepts logs and organizes them
 // into topics then persists them to disk
 
+// listens for incoming producers and consumers
+func startServer() {
+
+	// open localhost port
+	// run a loop that listens for connections
+	// when a connection comes in, send to handleConnection()
+}
+
+// determines if incoming connection is producer or consumer
+func handleConnection() {
+
+	// read first bytes of network
+	// handle if producer or consumer
+}
+
+// coordinate storing the message safely
+func acceptLog() {
+
+	// open folder / file for specific topic
+	// check current size of the file for byte position
+	// determine offset by how many items are already stored in this topic
+	// save key value pair [offset]byte
+	// call persisLog() to save to disk
+}
+
+// write the raw data to drive
 func persistLog() {
 
-}
-
-// send each topic to a different log file to separate topics
-func organizeLog(logFileName string) {
-
-	fileName := logFileName
-	filePath := fmt.Sprintf("Logs/%s", fileName)
-
-	file, err := os.OpenFile(filePath, os.O_WRONLY | os.O_CREATE | os.O_APPEND, 0644)
-	if err != nil {
-		fmt.Println(http.StatusInternalServerError)
-	}
-	defer file.Close()
-}
-
-func notifyConsumer() {
-
+	// write the bytes to the file
+	// call file.Sync()
 }
 
 // Consumer - Applications that read logs from the broker (sequentially)
@@ -97,19 +72,16 @@ func notifyConsumer() {
 // send all logs to a single file as a history file
 // (in case this fake store gets into fake legal trouble)
 
+// request data from a specific point in time
 func processLog() {
 
+	// connect to broker and ask for logs
+	// consumer receives binary
+	// turn it back into readable text
+	// update dashboard
 }
 
 // Diagram of what it should look like
 // [Producers]  ──(TCP/Protobuf)──>  [Log Broker]  ──(Appends to Disk)
 //                                       │
 //                                       └──(Streams)──> [Consumers]
-
-// very necessary part of this program
-func wakeUpSleepDeprivedWorker() {
-
-	fmt.Println("Frantically drinking coffee and solving problem")
-	// wait 3 seconds
-	fmt.Println("Problem solved. Going back to sleep")
-}
