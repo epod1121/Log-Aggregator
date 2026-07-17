@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
-	//"golang.org/x/tools/go/analysis/passes/defers"
-	// "net/http"
-	// "time"
+
+	"github.com/epod1121/Log-Aggregator/.gitignore/pb"
+	"google.golang.org/protobuf/proto"
 )
 
 var offsetByteMap = make(map[int]int64)
@@ -27,10 +28,25 @@ func newLogProducer() {
 }
 
 // package and ships a single log
-func send() {
+func send(from string, time string, topic string, message string) {
 
-	// take the time, topic, and message
-	// turn them into protobuf
+	// take the time, topic, and message and turn them into protobuf
+	log := &pb.Log {
+		From:		from,
+		Time:		time,
+		Topic:		topic,
+		Message:	message,
+	}
+
+	passTopic := topic
+
+	// marshal (turn into bytes) the log data
+	data, err := proto.Marshal(log)
+	if err != nil {
+		fmt.Println("Error marshalling")
+	}
+
+	acceptLog(passTopic, data)
 	// send those thru tcp connection from newLogProducer()
 }
 
@@ -41,7 +57,16 @@ func send() {
 func startServer() {
 
 	// open localhost port
+	err := http.ListenAndServe(":8001", nil)
+	if err != nil {
+		fmt.Println("Port failed to open")
+	}
+	
 	// run a loop that listens for connections
+	for {
+
+	}
+
 	// when a connection comes in, send to handleConnection()
 }
 
@@ -102,9 +127,6 @@ func persistLog(file *os.File, data []byte) {
 
 // Consumer - Applications that read logs from the broker (sequentially)
 // and process them
-
-// send all logs to a single file as a history file
-// (in case this fake store gets into fake legal trouble)
 
 // request data from a specific point in time
 func processLog() {
