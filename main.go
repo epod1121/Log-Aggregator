@@ -3,14 +3,17 @@ package main
 import (
 	"fmt"
 	"io"
-	"net/http"
+	"net"
 	"os"
 
 	"github.com/epod1121/Log-Aggregator/.gitignore/pb"
 	"google.golang.org/protobuf/proto"
 )
 
-var offsetByteMap = make(map[int]int64)
+var (
+	offsetByteMap = make(map[int]int64)
+	offset = len(offsetByteMap)
+)
 
 func main() {
 	fmt.Print("Starting Program...")
@@ -55,7 +58,7 @@ func send(from string, time string, topic string, message string) {
 	// NEED TO FIX THIS OFFSET THING RIGHT HERE
 	// NEED TO FIX THIS OFFSET THING RIGHT HERE
 
-	handleConnection(true, 0,  passTopic, data)
+	
 	// send those thru tcp connection from newLogProducer()
 }
 
@@ -69,38 +72,60 @@ func send(from string, time string, topic string, message string) {
 // listens for incoming producers and consumers
 func startServer() {
 
-	// open localhost port
-	err := http.ListenAndServe(":8001", nil)
+	// open tcp port
+	ln, err := net.Listen("tcp", ":9092")
 	if err != nil {
 		fmt.Println("Port failed to open")
-	}
-	
-	// run a loop that listens for connections
-	for {
-
-	}
-
-	// when a connection comes in, send to handleConnection()
-}
-
-// determines if incoming connection is producer or consumer
-func handleConnection(producer bool, offset int, passTopic string, data []byte) {
-
-	if producer{
-		// go ahead and pass along to acceptLog
-		acceptLog(passTopic, data)
 		return
 	}
 
-	// if consumer - need to stream data from disk
-	steamLogs(passTopic, offset)
+	fmt.Println("Broker is listening on port 9092...")
+	
+	// run a loop that listens for connections
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection")
+			continue
+		}
+
+		// when a connection comes in, send to handleConnection()
+		// in a go routine for speed and load handling
+		go handleConnection(conn)
+	}
+}
+
+// determines if incoming connection is producer or consumer
+func handleConnection(conn net.Conn) {
+
+	defer conn.Close()
+	idBuffer := make([]byte, 1)
+
+	_, err := conn.Read(idBuffer)
+	if err != nil {
+		fmt.Println("Failed to read id")
+		return
+	}
+
+	connectionType := idBuffer[0]
+
+	switch connectionType {
+	case 1:
+		acceptLog(conn)
+
+	case 2:
+		streamLogs(conn)
+
+	default:
+		fmt.Println("Unknown connection type")
+	}
+
 }
 
 // coordinate storing the message safely
-func acceptLog(topic string, message []byte) {
+func acceptLog(conn net.Conn) {
 
 	nextByte := int64(0)
-	offset := len(offsetByteMap)
 
 	// open folder / file for specific topic
 	fileTopic := topic
@@ -126,11 +151,11 @@ func acceptLog(topic string, message []byte) {
 	offset++
 
 	// call persisLog() to save to disk
-	persistLog(file, message)
+	persistLog(file, conn)
 }
 
 // write the raw data to drive
-func persistLog(file *os.File, data []byte) {
+func persistLog(file *os.File, conn net.Conn) {
 
 	// write the bytes to the file
 	success, err := file.Write(data)
@@ -138,14 +163,13 @@ func persistLog(file *os.File, data []byte) {
 		fmt.Println("Error persisting data")
 		return
 	}
-	defer file.Close()
 
 	fmt.Printf("Wrote %v bytes to disk\n", success)
 	// call file.Sync()
 }
 
 // streams data from disk to consumer
-func steamLogs(topic string, startOffset int) {
+func streamLogs(conn net.Conn) {
 
 	startStreaming := offsetByteMap[startOffset]
 	// open folder / file for streaming
@@ -164,9 +188,17 @@ func steamLogs(topic string, startOffset int) {
 		return
 	}
 
+	var messageLength int64 = 15
+	buf := make([]byte, messageLength)
+
+	_, err = conn.Read(buf)
+	if err != nil {
+		fmt.Println("Error reading buffer")
+	}
+
 	// need to send data directly to consumer over tcp connection
 	// here just as a placeholder
-	fmt.Println(data)
+	conn.Write(data)
 }
 
 
