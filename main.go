@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
@@ -125,10 +126,41 @@ func handleConnection(conn net.Conn) {
 // coordinate storing the message safely
 func acceptLog(conn net.Conn) {
 
-	nextByte := int64(0)
+	// read topic from conn
+	topicLen, err := readLength(conn)
+	if err != nil {
+		fmt.Println("Error reading file length")
+		return
+	}
+	topicBuf := make([]byte, topicLen)
+	_, err = io.ReadFull(conn, topicBuf)
+	if err != nil {
+		fmt.Println("Error reading topic")
+		return
+	}
+	fileTopic := string(topicBuf)
 
-	// open folder / file for specific topic
-	fileTopic := topic
+	// read length of protobuf bytes
+	dataLen, err := readLength(conn)
+	if err != nil {
+		fmt.Println("Error reading data length")
+		return
+	}
+	dataBuf := make([]byte, dataLen)
+	_, err = io.ReadFull(conn, dataBuf)
+	if err != nil {
+		fmt.Println("Error reading data payload")
+		return
+	}
+
+	// create "Logs" folder if it does not exist
+	err = os.MkdirAll("Logs", 0755)
+	if err != nil {
+		fmt.Println("Error creating Log file")
+		return
+	}
+
+	// open/create file for specific topic
 	filename := fmt.Sprintf("Logs/%s.log", fileTopic)
 	file, err := os.OpenFile(filename, os.O_RDWR | os.O_CREATE | os.O_APPEND, 0644)
 	if err != nil {
@@ -144,18 +176,18 @@ func acceptLog(conn net.Conn) {
 		return
 	}
 
-	nextByte = fileSize.Size()
+	nextByte := fileSize.Size()
 
 	// save key value pair [offset]byte
 	offsetByteMap[offset] = nextByte
 	offset++
 
 	// call persisLog() to save to disk
-	persistLog(file, conn)
+	persistLog(file, dataBuf)
 }
 
 // write the raw data to drive
-func persistLog(file *os.File, conn net.Conn) {
+func persistLog(file *os.File, data []byte) {
 
 	// write the bytes to the file
 	success, err := file.Write(data)
@@ -165,7 +197,7 @@ func persistLog(file *os.File, conn net.Conn) {
 	}
 
 	fmt.Printf("Wrote %v bytes to disk\n", success)
-	// call file.Sync()
+	file.Sync()
 }
 
 // streams data from disk to consumer
@@ -199,6 +231,17 @@ func streamLogs(conn net.Conn) {
 	// need to send data directly to consumer over tcp connection
 	// here just as a placeholder
 	conn.Write(data)
+}
+
+// reads the length of the file when passed to acceptLog()
+func readLength(conn net.Conn) (int32, error) {
+	buf := make([]byte, 4)
+	_, err := io.ReadFull(conn, buf)
+	if err != nil {
+		return 0, err
+	}
+
+	return int32(binary.BigEndian.Uint32(buf)), nil
 }
 
 
