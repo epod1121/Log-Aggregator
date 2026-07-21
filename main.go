@@ -132,6 +132,7 @@ func acceptLog(conn net.Conn) {
 		fmt.Println("Error reading file length")
 		return
 	}
+	// translates protobuf into the actual topic
 	topicBuf := make([]byte, topicLen)
 	_, err = io.ReadFull(conn, topicBuf)
 	if err != nil {
@@ -140,12 +141,14 @@ func acceptLog(conn net.Conn) {
 	}
 	fileTopic := string(topicBuf)
 
+
 	// read length of protobuf bytes
 	dataLen, err := readLength(conn)
 	if err != nil {
 		fmt.Println("Error reading data length")
 		return
 	}
+	// translates the actual protobuf into payload
 	dataBuf := make([]byte, dataLen)
 	_, err = io.ReadFull(conn, dataBuf)
 	if err != nil {
@@ -153,6 +156,7 @@ func acceptLog(conn net.Conn) {
 		return
 	}
 
+	
 	// create "Logs" folder if it does not exist
 	err = os.MkdirAll("Logs", 0755)
 	if err != nil {
@@ -182,7 +186,7 @@ func acceptLog(conn net.Conn) {
 	offsetByteMap[offset] = nextByte
 	offset++
 
-	// call persisLog() to save to disk
+	// send the file and the data to persist to it to save to disk
 	persistLog(file, dataBuf)
 }
 
@@ -203,9 +207,31 @@ func persistLog(file *os.File, data []byte) {
 // streams data from disk to consumer
 func streamLogs(conn net.Conn) {
 
-	startStreaming := offsetByteMap[startOffset]
+	// just like in acceptLog, get the file length and name from protobuf
+	// read topic from conn
+	topicLen, err := readLength(conn)
+	if err != nil {
+		fmt.Println("Error reading file length")
+		return
+	}
+	// translates protobuf into the actual topic
+	topicBuf := make([]byte, topicLen)
+	_, err = io.ReadFull(conn, topicBuf)
+	if err != nil {
+		fmt.Println("Error reading topic")
+		return
+	}
+	fileTopic := string(topicBuf)
+
+	// read the offset value from conn
+	startOffset, err := readOffset(conn)
+	if err != nil {
+		fmt.Println("Error reading start offset")
+		return
+	}
+	targetByte := offsetByteMap[int(startOffset)]
+
 	// open folder / file for streaming
-	fileTopic := topic
 	filename := fmt.Sprintf("Logs/%s.log", fileTopic)
 	file, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	if err != nil {
@@ -214,23 +240,42 @@ func streamLogs(conn net.Conn) {
 	}
 	defer file.Close()
 
-	data, err := file.Seek(startStreaming, io.SeekStart)
+	_, err = file.Seek(targetByte, io.SeekStart)
 	if err != nil {
 		fmt.Println("Error seeking to offset")
 		return
 	}
 
-	var messageLength int64 = 15
+	// get the length of how long the requested streamed message is
+	// while checking to see if the index is out of bounds
+	var messageLength int64
+
+	nextByte, exists := offsetByteMap[int(startOffset) + 1]
+	if exists {
+		messageLength = nextByte - targetByte
+	} else {
+		fileInfo, err := file.Stat()
+		if err != nil {
+			fmt.Println("Error getting file stat")
+			return
+		}
+		messageLength = fileInfo.Size() - targetByte
+	}
+
 	buf := make([]byte, messageLength)
 
-	_, err = conn.Read(buf)
+	_, err = file.Read(buf)
 	if err != nil {
 		fmt.Println("Error reading buffer")
 	}
 
 	// need to send data directly to consumer over tcp connection
 	// here just as a placeholder
-	conn.Write(data)
+	_, err = conn.Write(buf)
+	if err != nil {
+		fmt.Println("Error streaming log")
+		return
+	}
 }
 
 // reads the length of the file when passed to acceptLog()
@@ -242,6 +287,17 @@ func readLength(conn net.Conn) (int32, error) {
 	}
 
 	return int32(binary.BigEndian.Uint32(buf)), nil
+}
+
+// reads the offset of the file when reading from streamLogs()
+func readOffset(conn net.Conn) (int64, error) {
+	buf := make([]byte, 8)
+	_, err := io.ReadFull(conn, buf)
+	if err != nil {
+		return 0, nil
+	}
+
+	return int64(binary.BigEndian.Uint64(buf)), nil
 }
 
 
