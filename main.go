@@ -28,14 +28,24 @@ func main() {
 // Producer - get log messages and send them to broker
 // ======================================================================================
 
-// initialize connection to broker
-func newLogProducer() {
+// open the actual connection
+type Producer struct {
+	conn net.Conn
+}
 
-	// return a structure that holds this connection
+// connect and hold open the connection to tcp address
+func newLogProducer(address string) (*Producer, error){
+
+	conn, err := net.Dial("tcp", address)
+	if err != nil {
+		fmt.Println("Server is offline")
+		return nil, err
+	}
+	return &Producer{conn: conn}, nil
 }
 
 // package and ships a single log
-func send(from string, time string, topic string, message string) {
+func (p *Producer) send(from string, time string, topic string, message string) error {
 
 	// take the time, topic, and message and turn them into protobuf
 	log := &pb.Log {
@@ -45,22 +55,33 @@ func send(from string, time string, topic string, message string) {
 		Message:	message,
 	}
 
-	passTopic := topic
-
 	// marshal (turn into bytes) the log data
 	data, err := proto.Marshal(log)
 	if err != nil {
 		fmt.Println("Error marshalling")
+		return err
 	}
 
-	// NEED TO FIX THIS OFFSET THING RIGHT HERE
-	// NEED TO FIX THIS OFFSET THING RIGHT HERE
-	// NEED TO FIX THIS OFFSET THING RIGHT HERE
-	// NEED TO FIX THIS OFFSET THING RIGHT HERE
-	// NEED TO FIX THIS OFFSET THING RIGHT HERE
+	// get lengths
+    topicBytes := []byte(topic)
+    topicLen := make([]byte, 4)
+    binary.BigEndian.PutUint32(topicLen, uint32(len(topicBytes)))
 
-	
-	// send those thru tcp connection from newLogProducer()
+    dataLen := make([]byte, 4)
+    binary.BigEndian.PutUint32(dataLen, uint32(len(data)))
+
+    // combine everything into a single network packet:
+	// 1 byte id --> 4 byte topic len --> topic --> 4 byte data len --> data
+	var packet []byte
+    packet = append(packet, 1) // Secret knock (Producer)
+    packet = append(packet, topicLen...)
+    packet = append(packet, topicBytes...)
+    packet = append(packet, dataLen...)
+    packet = append(packet, data...)
+
+    // send in one single TCP write
+    _, err = p.conn.Write(packet)
+    return err
 }
 
 
@@ -222,6 +243,7 @@ func streamLogs(conn net.Conn) {
 		return
 	}
 	fileTopic := string(topicBuf)
+
 
 	// read the offset value from conn
 	startOffset, err := readOffset(conn)
