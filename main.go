@@ -4,8 +4,10 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"os"
+	"time"
 
 	"github.com/epod1121/Log-Aggregator/.gitignore/pb"
 	"google.golang.org/protobuf/proto"
@@ -16,22 +18,66 @@ var (
 	offset = len(offsetByteMap)
 )
 
-func main() {
-	fmt.Print("Starting Program...")
+// open up producer connection
+type Producer struct {
+	conn net.Conn
 }
 
-// need some place for the logs to actually come from
-// going to simulate a high traffic online store with alerts
-// as well as fake analytics for purchases, sing ups, etc.
+func main() {
+	fmt.Print("Starting Program...")
+
+	// start broker server
+	startServer()
+
+	// start producer
+	_, err := newLogProducer("localhost:9092")
+	if err != nil {
+		fmt.Println("Error starting producer")
+		return
+	}
+
+	// start simulated traffic
+
+}
+
+// ======================================================================================
+// Traffic Simulation - source of all logs that are sent through system
+// ======================================================================================
+
+func startSimulatedTraffic(producer *Producer){
+
+	methods := []func(*Producer){addToCart, newSignUp, payment, paymentError}
+
+	for {
+		// pick a random method from the list
+		randomIndex := rand.Intn(len(methods))
+		methods[randomIndex](producer)
+
+		// sleep for a random time in range
+		time.Sleep(time.Duration(100+rand.Intn(300)) * time.Millisecond)
+	}
+}
+
+// funcs to handle simulated traffic
+func addToCart(producer *Producer) {
+
+}
+
+func newSignUp(producer *Producer) {
+
+}
+
+func payment(producer *Producer) {
+
+}
+
+func paymentError(producer *Producer) {
+
+}
 
 // ======================================================================================
 // Producer - get log messages and send them to broker
 // ======================================================================================
-
-// open the actual connection
-type Producer struct {
-	conn net.Conn
-}
 
 // connect and hold open the connection to tcp address
 func newLogProducer(address string) (*Producer, error){
