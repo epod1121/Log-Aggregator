@@ -30,14 +30,14 @@ func main() {
 	startServer()
 
 	// start producer
-	_, err := newLogProducer("localhost:9092")
+	producer, err := newLogProducer("localhost:9092")
 	if err != nil {
 		fmt.Println("Error starting producer")
 		return
 	}
 
 	// start simulated traffic
-
+	startSimulatedTraffic(producer)
 }
 
 // ======================================================================================
@@ -60,19 +60,33 @@ func startSimulatedTraffic(producer *Producer){
 
 // funcs to handle simulated traffic
 func addToCart(producer *Producer) {
-
+	err := producer.send("Activity Alert", time.Now().Format(time.RFC1123), "add to cart", "An item was added to a cart!")
+	if err != nil {
+		fmt.Println("An error occurred sending a log")
+	}
 }
 
 func newSignUp(producer *Producer) {
-
+	err := producer.send("Sign up", time.Now().Format(time.RFC1123), "new sign up", "New user signed up")
+	if err != nil {
+		fmt.Println("An error occurred sending a log")
+	}
 }
 
 func payment(producer *Producer) {
-
+	randomInt := string(rand.Intn(1000))
+	err := producer.send("Checkout", time.Now().Format(time.RFC1123), "payment", randomInt)
+	if err != nil {
+		fmt.Println("An error occurred sending a log")
+	}
 }
 
 func paymentError(producer *Producer) {
-
+	randomInt := string(rand.Intn(1000))
+	err := producer.send("Payment Process", time.Now().Format(time.RFC1123), "payment error", randomInt)
+	if err != nil {
+		fmt.Println("An error occurred sending a log")
+	}
 }
 
 // ======================================================================================
