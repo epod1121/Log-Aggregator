@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/epod1121/Log-Aggregator/.gitignore/pb"
@@ -46,7 +47,7 @@ func main() {
 
 func startSimulatedTraffic(producer *Producer){
 
-	methods := []func(*Producer){addToCart, newSignUp, payment, paymentError}
+	methods := []func(*Producer){addToCart, newSignUp, payment}
 
 	for {
 		// pick a random method from the list
@@ -76,14 +77,6 @@ func newSignUp(producer *Producer) {
 func payment(producer *Producer) {
 	randomInt := string(rand.Intn(1000))
 	err := producer.send("Checkout", time.Now().Format(time.RFC1123), "payment", randomInt)
-	if err != nil {
-		fmt.Println("An error occurred sending a log")
-	}
-}
-
-func paymentError(producer *Producer) {
-	randomInt := string(rand.Intn(1000))
-	err := producer.send("Payment Process", time.Now().Format(time.RFC1123), "payment error", randomInt)
 	if err != nil {
 		fmt.Println("An error occurred sending a log")
 	}
@@ -390,12 +383,105 @@ func readOffset(conn net.Conn) (int64, error) {
 // ======================================================================================
 
 // request data from a specific point in time
-func processLog() {
+func processLog(address string, topic string, startOffset int64) {
 
-	// connect to broker and ask for logs
-	// consumer receives binary
-	// turn it back into readable text
-	// update dashboard
+	// connect to broker
+	conn, err := net.Dial("tcp", address)
+	if err != nil {
+		fmt.Println("Error connecting consumer to broker")
+		return
+	}
+	defer conn.Close()
+
+	// tell the broker it is a consumer
+	_, err = conn.Write([]byte{2})
+	if err != nil {
+		return
+	}
+
+	// send length of topic as well as the string
+	topicBytes := []byte(topic)
+	topicLenBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(topicLenBuf, uint32(len(topicBytes)))
+
+	// write length and bytes to broker
+	conn.Write(topicLenBuf)
+	conn.Write(topicBytes)
+
+	// send the starting offset
+	offsetBuf := make([]byte, 8)
+	binary.BigEndian.PutUint64(offsetBuf, uint64(startOffset))
+	conn.Write(offsetBuf)
+
+
+
+	// now time to process the data
+	// and display it in the terminal!
+
+	// initiate variables that would be cool to keep track of
+	var logs int
+	var added int
+	var checkouts int
+	var income int
+	var signUps int
+
+	// keep track of uptime -- just something cool to have
+	upTime := time.Now()
+
+
+	// start a while loop that runs on forever (as long as the program runs)
+	for {
+		// create buffer to receive log from broker
+		buf := make([]byte, 1024)
+		n, err := conn.Read(buf)
+		if err != nil {
+			fmt.Println("Error reading buffer from broker")
+			return
+		}
+
+		// unmarshal protobuf
+		log := &pb.Log{}
+		err = proto.Unmarshal(buf[:n], log)
+		if err != nil {
+			fmt.Println("Error unmarshaling log")
+			return
+		}
+
+		// update variables
+		logs++
+		switch log.Topic {
+		case "new sign up":
+			signUps++
+		case "add to cart":
+			added++
+		case "payment":
+			checkouts++
+			amount, err := strconv.Atoi(log.Message)
+			if err != nil {
+				fmt.Println("Error parsing payment")
+			}
+			income += amount
+		}
+
+		// print log to terminal
+		fmt.Print("\033[?25l")
+
+		// update terminal
+		fmt.Print("\033[H\033[J")
+		fmt.Println("==================================================")
+        fmt.Println("       LIVE DISTRIBUTED LOG AGGREGATOR            ")
+        fmt.Println("==================================================")
+        fmt.Printf(" Total Logs Ingested           : %d\n", logs)
+		fmt.Printf(" Total Items Added to cart     : %v\n", added)
+        fmt.Printf(" Total Checkouts               : %v\n", checkouts)
+		fmt.Printf(" Total Income                  : $%v\n", income)
+        fmt.Printf(" Total Sign Ups                : %v\n", signUps)
+        fmt.Println("==================================================")
+		fmt.Printf(" Total Uptime                  : %v\n", time.Since(upTime).Round(time.Second))
+
+		// sleep for just a couple seconds
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 // Diagram of what it should look like
